@@ -1,0 +1,271 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="PmpcDiag - Patch My PC Log Troubleshooter"
+        Width="1100" Height="750" MinWidth="800" MinHeight="550"
+        WindowStartupLocation="CenterScreen"
+        Background="#1E1E2E">
+    <Window.Resources>
+        <!-- Dark theme colors -->
+        <SolidColorBrush x:Key="BgPrimary" Color="#1E1E2E"/>
+        <SolidColorBrush x:Key="BgSecondary" Color="#2B2B3D"/>
+        <SolidColorBrush x:Key="BgInput" Color="#363649"/>
+        <SolidColorBrush x:Key="FgPrimary" Color="#CDD6F4"/>
+        <SolidColorBrush x:Key="FgSecondary" Color="#A6ADC8"/>
+        <SolidColorBrush x:Key="AccentBlue" Color="#89B4FA"/>
+        <SolidColorBrush x:Key="AccentGreen" Color="#A6E3A1"/>
+        <SolidColorBrush x:Key="SeverityError" Color="#F38BA8"/>
+        <SolidColorBrush x:Key="SeverityWarning" Color="#FAB387"/>
+        <SolidColorBrush x:Key="SeverityInfo" Color="#89B4FA"/>
+        <SolidColorBrush x:Key="BorderBrush" Color="#45475A"/>
+
+        <!-- Button style -->
+        <Style x:Key="ActionButton" TargetType="Button">
+            <Setter Property="Background" Value="#89B4FA"/>
+            <Setter Property="Foreground" Value="#1E1E2E"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#B4D0FB"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#6A9AF7"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+            <Setter Property="Background" Value="#45475A"/>
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#585B70"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#3B3D4F"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- CheckBox style -->
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,12,0"/>
+        </Style>
+
+        <!-- RadioButton style -->
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,14,0"/>
+        </Style>
+
+        <!-- Label style -->
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="#A6ADC8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="0,0,8,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>   <!-- Search panel -->
+            <RowDefinition Height="3*"/>     <!-- Results grid -->
+            <RowDefinition Height="5"/>      <!-- Splitter -->
+            <RowDefinition Height="1*"/>     <!-- Detail panel -->
+            <RowDefinition Height="Auto"/>   <!-- Status bar -->
+        </Grid.RowDefinitions>
+
+        <!-- Search Panel -->
+        <Border Grid.Row="0" Background="{StaticResource BgSecondary}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                Padding="16,12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="8"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="8"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="12"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Row 0: Keywords -->
+                <DockPanel Grid.Row="0">
+                    <Label DockPanel.Dock="Left" Content="Keywords:" Width="80"/>
+                    <CheckBox x:Name="chkDefaults" DockPanel.Dock="Right"
+                              Content="Include defaults" IsChecked="True" Margin="12,0,0,0"/>
+                    <TextBox x:Name="txtKeywords" Background="{StaticResource BgInput}"
+                             Foreground="{StaticResource FgPrimary}" FontSize="13"
+                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                             Padding="6,4" VerticalContentAlignment="Center"
+                             ToolTip="Comma-separated keywords (e.g., error, 0x80070005, certificate)"/>
+                </DockPanel>
+
+                <!-- Row 2: Log Set -->
+                <DockPanel Grid.Row="2">
+                    <Label DockPanel.Dock="Left" Content="Log Set:" Width="80"/>
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="rbAll" Content="All" IsChecked="True" GroupName="LogSet"/>
+                        <RadioButton x:Name="rbPatchMyPC" Content="PatchMyPC" GroupName="LogSet"/>
+                        <RadioButton x:Name="rbIME" Content="IME" GroupName="LogSet"/>
+                    </StackPanel>
+                </DockPanel>
+
+                <!-- Row 4: Severity + Date Range -->
+                <DockPanel Grid.Row="4">
+                    <Label DockPanel.Dock="Left" Content="Severity:" Width="80"/>
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox x:Name="chkError" Content="Error" IsChecked="True"/>
+                        <CheckBox x:Name="chkWarning" Content="Warning" IsChecked="True"/>
+                        <CheckBox x:Name="chkInfo" Content="Info" IsChecked="False"/>
+
+                        <Label Content="After:" Margin="20,0,0,0"/>
+                        <DatePicker x:Name="dpAfter" Width="130"
+                                    Background="{StaticResource BgInput}"
+                                    Foreground="{StaticResource FgPrimary}"
+                                    BorderBrush="{StaticResource BorderBrush}"/>
+
+                        <Label Content="Before:" Margin="12,0,0,0"/>
+                        <DatePicker x:Name="dpBefore" Width="130"
+                                    Background="{StaticResource BgInput}"
+                                    Foreground="{StaticResource FgPrimary}"
+                                    BorderBrush="{StaticResource BorderBrush}"/>
+                    </StackPanel>
+                </DockPanel>
+
+                <!-- Row 6: Buttons -->
+                <DockPanel Grid.Row="6">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
+                        <Button x:Name="btnSearch" Content="Search" Style="{StaticResource ActionButton}" Margin="0,0,8,0"/>
+                        <Button x:Name="btnExport" Content="Export CSV" Style="{StaticResource SecondaryButton}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Label Content="Log Path:" Width="80"/>
+                        <TextBox x:Name="txtLogPath" Background="{StaticResource BgInput}"
+                                 Foreground="{StaticResource FgPrimary}" FontSize="13"
+                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                 Padding="6,4" Width="300" VerticalContentAlignment="Center"
+                                 ToolTip="Optional: override the log directory path (defaults to %ProgramData%)"/>
+                        <Button x:Name="btnBrowse" Content="..." Style="{StaticResource SecondaryButton}"
+                                Margin="4,0,0,0" Padding="8,8"/>
+                    </StackPanel>
+                </DockPanel>
+            </Grid>
+        </Border>
+
+        <!-- Results DataGrid -->
+        <DataGrid Grid.Row="1" x:Name="dgResults"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  SelectionMode="Single" SelectionUnit="FullRow"
+                  Background="{StaticResource BgPrimary}"
+                  Foreground="{StaticResource FgPrimary}"
+                  RowBackground="#1E1E2E" AlternatingRowBackground="#252538"
+                  BorderBrush="{StaticResource BorderBrush}" BorderThickness="0"
+                  GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="#313244"
+                  HeadersVisibility="Column"
+                  FontSize="12.5"
+                  CanUserSortColumns="True"
+                  CanUserReorderColumns="True"
+                  CanUserResizeColumns="True">
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="#313244"/>
+                    <Setter Property="Foreground" Value="#A6ADC8"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="FontSize" Value="12.5"/>
+                    <Setter Property="Padding" Value="8,6"/>
+                    <Setter Property="BorderBrush" Value="#45475A"/>
+                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="Padding" Value="8,4"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Style.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="#45475A"/>
+                            <Setter Property="Foreground" Value="#CDD6F4"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.CellStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss.fff}'}" Width="175"/>
+                <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="180"/>
+                <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="80"/>
+                <DataGridTextColumn Header="Component" Binding="{Binding Component}" Width="150"/>
+                <DataGridTextColumn Header="Line" Binding="{Binding LineNumber}" Width="55"/>
+                <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Grid Splitter -->
+        <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch"
+                      Background="{StaticResource BorderBrush}" Cursor="SizeNS"/>
+
+        <!-- Detail Panel -->
+        <Border Grid.Row="3" Background="{StaticResource BgSecondary}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Label Grid.Row="0" Content="Message Detail" FontWeight="SemiBold"
+                       Foreground="{StaticResource FgSecondary}" Margin="8,4,0,0"/>
+                <TextBox Grid.Row="1" x:Name="txtDetail"
+                         Background="{StaticResource BgInput}"
+                         Foreground="{StaticResource FgPrimary}"
+                         FontFamily="Cascadia Mono, Consolas, Courier New"
+                         FontSize="12" IsReadOnly="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         BorderThickness="0" Margin="8,4,8,8"
+                         Padding="8"/>
+            </Grid>
+        </Border>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="4" Background="#181825" Padding="12,6"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <TextBlock x:Name="tbStatusRight" DockPanel.Dock="Right"
+                           Foreground="{StaticResource FgSecondary}" FontSize="12"/>
+                <TextBlock x:Name="tbStatus" Foreground="{StaticResource FgSecondary}" FontSize="12"
+                           Text="Ready — enter keywords and click Search"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>
