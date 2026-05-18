@@ -1,3 +1,12 @@
+# Compile the CMTrace regex once and reuse across calls.
+# Format: <![LOG[message]LOG]!><time="HH:mm:ss.fffffff+offset" date="M-DD-YYYY" component="..." context="" type="N" thread="N" file="">
+$script:CMTraceRegex = [regex]::new(
+    '<!\[LOG\[(?<msg>.*?)\]LOG\]!>.*?time="(?<time>[\d:.+\-]+).*?".*?date="(?<date>[\d-]+)".*?component="(?<component>[^"]*)".*?type="(?<type>\d)"',
+    [System.Text.RegularExpressions.RegexOptions]::SingleLine -bor [System.Text.RegularExpressions.RegexOptions]::Compiled
+)
+
+$script:CMTraceSeverityMap = @{ '1' = 'Info'; '2' = 'Warning'; '3' = 'Error' }
+
 function Read-CMTraceLog {
     <#
     .SYNOPSIS
@@ -14,61 +23,63 @@ function Read-CMTraceLog {
     )
 
     $fileName = [System.IO.Path]::GetFileName($Path)
-    $content  = Get-Content -Path $Path -Raw -ErrorAction Stop
+    $content  = [System.IO.File]::ReadAllText($Path)
 
-    # CMTrace format (SingleLine so '.' matches newlines for multiline messages):
-    # <![LOG[message]LOG]!><time="HH:mm:ss.fffffff+offset" date="M-DD-YYYY" component="..." context="" type="N" thread="N" file="">
-    $pattern = '<!\[LOG\[(?<msg>.*?)\]LOG\]!>.*?time="(?<time>[\d:.+\-]+).*?".*?date="(?<date>[\d-]+)".*?component="(?<component>[^"]*)".*?type="(?<type>\d)"'
+    $regexMatches = $script:CMTraceRegex.Matches($content)
+    if ($regexMatches.Count -eq 0) { return }
 
-    $matches = [regex]::Matches(
-        $content,
-        $pattern,
-        [System.Text.RegularExpressions.RegexOptions]::SingleLine
-    )
+    # Pre-compute newline positions so per-match line numbers are O(log n) instead of O(filesize).
+    $newlinePositions = [System.Collections.Generic.List[int]]::new()
+    $scanIdx = 0
+    while (($scanIdx = $content.IndexOf("`n", $scanIdx)) -ge 0) {
+        $newlinePositions.Add($scanIdx)
+        $scanIdx++
+    }
 
-    $severityMap = @{ '1' = 'Info'; '2' = 'Warning'; '3' = 'Error' }
+    # Matches arrive in ascending Index order — walk newlines with a running pointer.
+    $nlCount = $newlinePositions.Count
+    $nlPtr   = 0
 
-    foreach ($m in $matches) {
-        $rawTime = $m.Groups['time'].Value
-        $rawDate = $m.Groups['date'].Value
-        $message = $m.Groups['msg'].Value.Trim()
+    $results = [System.Collections.Generic.List[psobject]]::new($regexMatches.Count)
+
+    foreach ($m in $regexMatches) {
+        $rawTime   = $m.Groups['time'].Value
+        $rawDate   = $m.Groups['date'].Value
+        $message   = $m.Groups['msg'].Value.Trim()
         $component = $m.Groups['component'].Value
-        $typeVal  = $m.Groups['type'].Value
+        $typeVal   = $m.Groups['type'].Value
 
-        # Parse timestamp by extracting components directly
-        # Date: "M-DD-YYYY" or "MM-DD-YYYY"  Time: "HH:mm:ss.fffffff" optionally "+offset"
         $timestamp = $null
         try {
             $dateParts = $rawDate -split '-'
             $timePart  = $rawTime -replace '[+\-]\d+$', ''
             $timeParts = $timePart -split '[:.]'
 
-            $month  = [int]$dateParts[0]
-            $day    = [int]$dateParts[1]
-            $year   = [int]$dateParts[2]
-            $hour   = [int]$timeParts[0]
-            $minute = [int]$timeParts[1]
-            $second = [int]$timeParts[2]
+            $timestamp = [datetime]::new(
+                [int]$dateParts[2], [int]$dateParts[0], [int]$dateParts[1],
+                [int]$timeParts[0], [int]$timeParts[1], [int]$timeParts[2]
+            )
 
-            $timestamp = [datetime]::new($year, $month, $day, $hour, $minute, $second)
-
-            # Add fractional seconds if present
             if ($timeParts.Count -ge 4 -and $timeParts[3]) {
-                $frac = $timeParts[3].PadRight(7, '0').Substring(0, 7)
-                $ticks = [long]$frac
-                $timestamp = $timestamp.AddTicks($ticks)
+                $frac  = $timeParts[3].PadRight(7, '0').Substring(0, 7)
+                $timestamp = $timestamp.AddTicks([long]$frac)
             }
         }
         catch {
-            # Timestamp parse failed — leave as null
+            # Leave timestamp null on parse failure.
         }
 
-        # Calculate line number from position in the file
-        $lineNumber = ($content.Substring(0, $m.Index) -split "`n").Count
+        # Advance the newline pointer to the first newline at-or-after this match.
+        while ($nlPtr -lt $nlCount -and $newlinePositions[$nlPtr] -lt $m.Index) {
+            $nlPtr++
+        }
+        $lineNumber = $nlPtr + 1
 
-        $severity = if ($severityMap.ContainsKey($typeVal)) { $severityMap[$typeVal] } else { 'Unknown' }
+        $severity = if ($script:CMTraceSeverityMap.ContainsKey($typeVal)) {
+            $script:CMTraceSeverityMap[$typeVal]
+        } else { 'Unknown' }
 
-        [PSCustomObject]@{
+        $results.Add([PSCustomObject]@{
             Timestamp  = $timestamp
             Message    = $message
             Severity   = $severity
@@ -76,6 +87,8 @@ function Read-CMTraceLog {
             Source     = $fileName
             FullPath   = $Path
             LineNumber = $lineNumber
-        }
+        })
     }
+
+    return $results
 }
