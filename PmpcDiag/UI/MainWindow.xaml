@@ -93,6 +93,41 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Padding" Value="0,0,8,0"/>
         </Style>
+
+        <!-- TabItem style (dark theme) -->
+        <Style TargetType="TabItem">
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Background" Value="#2B2B3D"/>
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="BorderBrush" Value="#45475A"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1,1,1,0"
+                                CornerRadius="4,4,0,0"
+                                Margin="0,0,2,0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#363649"/>
+                                <Setter Property="Foreground" Value="#89B4FA"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#363649"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -183,53 +218,13 @@
             </Grid>
         </Border>
 
-        <!-- Results DataGrid -->
-        <DataGrid Grid.Row="1" x:Name="dgResults"
-                  AutoGenerateColumns="False" IsReadOnly="True"
-                  SelectionMode="Single" SelectionUnit="FullRow"
-                  Background="{StaticResource BgPrimary}"
-                  Foreground="{StaticResource FgPrimary}"
-                  RowBackground="#1E1E2E" AlternatingRowBackground="#252538"
-                  BorderBrush="{StaticResource BorderBrush}" BorderThickness="0"
-                  GridLinesVisibility="Horizontal"
-                  HorizontalGridLinesBrush="#313244"
-                  HeadersVisibility="Column"
-                  FontSize="12.5"
-                  CanUserSortColumns="True"
-                  CanUserReorderColumns="True"
-                  CanUserResizeColumns="True">
-            <DataGrid.ColumnHeaderStyle>
-                <Style TargetType="DataGridColumnHeader">
-                    <Setter Property="Background" Value="#313244"/>
-                    <Setter Property="Foreground" Value="#A6ADC8"/>
-                    <Setter Property="FontWeight" Value="SemiBold"/>
-                    <Setter Property="FontSize" Value="12.5"/>
-                    <Setter Property="Padding" Value="8,6"/>
-                    <Setter Property="BorderBrush" Value="#45475A"/>
-                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                </Style>
-            </DataGrid.ColumnHeaderStyle>
-            <DataGrid.CellStyle>
-                <Style TargetType="DataGridCell">
-                    <Setter Property="Padding" Value="8,4"/>
-                    <Setter Property="BorderThickness" Value="0"/>
-                    <Style.Triggers>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="#45475A"/>
-                            <Setter Property="Foreground" Value="#CDD6F4"/>
-                        </Trigger>
-                    </Style.Triggers>
-                </Style>
-            </DataGrid.CellStyle>
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss.fff}'}" Width="175"/>
-                <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="180"/>
-                <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="80"/>
-                <DataGridTextColumn Header="Component" Binding="{Binding Component}" Width="150"/>
-                <DataGridTextColumn Header="Line" Binding="{Binding LineNumber}" Width="55"/>
-                <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*"/>
-            </DataGrid.Columns>
-        </DataGrid>
+        <!-- Results TabControl — one tab per log file with hits, plus an "All Results" tab -->
+        <TabControl Grid.Row="1" x:Name="tcResults"
+                    Background="{StaticResource BgPrimary}"
+                    Foreground="{StaticResource FgPrimary}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="0"/>
 
         <!-- Grid Splitter -->
         <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch"

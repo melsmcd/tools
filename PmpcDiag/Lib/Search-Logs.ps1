@@ -18,7 +18,7 @@ function Search-Logs {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [PSCustomObject[]]$LogEntries,
+        [psobject[]]$LogEntries,
 
         [string[]]$Keywords,
 
@@ -31,38 +31,35 @@ function Search-Logs {
         [Nullable[datetime]]$Before
     )
 
-    $filtered = $LogEntries
-
-    # Keyword filter — match any keyword (case-insensitive)
+    # Pre-compile a single combined regex for all keywords (case-insensitive).
+    $keywordRegex = $null
     if ($Keywords -and $Keywords.Count -gt 0) {
-        $escapedKeywords = $Keywords | ForEach-Object { [regex]::Escape($_) }
-        $combinedPattern = $escapedKeywords -join '|'
-
-        $filtered = $filtered | Where-Object {
-            $_.Message -match $combinedPattern
-        }
+        $combinedPattern = ($Keywords | ForEach-Object { [regex]::Escape($_) }) -join '|'
+        $keywordRegex = [regex]::new(
+            $combinedPattern,
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [System.Text.RegularExpressions.RegexOptions]::Compiled
+        )
     }
 
-    # Severity filter
+    # HashSet membership is O(1) versus -in array's O(n) per entry.
+    $severitySet = $null
     if ($Severities -and $Severities.Count -gt 0) {
-        $filtered = $filtered | Where-Object {
-            $_.Severity -in $Severities
-        }
+        $severitySet = [System.Collections.Generic.HashSet[string]]::new(
+            [string[]]$Severities,
+            [System.StringComparer]::OrdinalIgnoreCase
+        )
     }
 
-    # Date range filters
-    if ($After) {
-        $filtered = $filtered | Where-Object {
-            $_.Timestamp -and $_.Timestamp -ge $After
-        }
+    $filtered = [System.Collections.Generic.List[psobject]]::new()
+
+    foreach ($entry in $LogEntries) {
+        if ($keywordRegex -and -not $keywordRegex.IsMatch([string]$entry.Message)) { continue }
+        if ($severitySet -and -not $severitySet.Contains([string]$entry.Severity)) { continue }
+        if ($After  -and (-not $entry.Timestamp -or $entry.Timestamp -lt $After))  { continue }
+        if ($Before -and (-not $entry.Timestamp -or $entry.Timestamp -gt $Before)) { continue }
+        $filtered.Add($entry)
     }
 
-    if ($Before) {
-        $filtered = $filtered | Where-Object {
-            $_.Timestamp -and $_.Timestamp -le $Before
-        }
-    }
-
-    # Sort by timestamp
     $filtered | Sort-Object Timestamp
 }

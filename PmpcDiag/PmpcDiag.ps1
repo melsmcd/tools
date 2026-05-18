@@ -49,10 +49,100 @@ $btnSearch    = $window.FindName('btnSearch')
 $btnExport    = $window.FindName('btnExport')
 $txtLogPath   = $window.FindName('txtLogPath')
 $btnBrowse    = $window.FindName('btnBrowse')
-$dgResults    = $window.FindName('dgResults')
+$tcResults    = $window.FindName('tcResults')
 $txtDetail    = $window.FindName('txtDetail')
 $tbStatus     = $window.FindName('tbStatus')
 $tbStatusRight = $window.FindName('tbStatusRight')
+
+# --- DataGrid XAML template (one instance created per results tab) ---
+$script:dataGridTemplate = @'
+<DataGrid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+          AutoGenerateColumns="False" IsReadOnly="True"
+          SelectionMode="Single" SelectionUnit="FullRow"
+          Background="#1E1E2E"
+          Foreground="#CDD6F4"
+          RowBackground="#1E1E2E" AlternatingRowBackground="#252538"
+          BorderBrush="#45475A" BorderThickness="0"
+          GridLinesVisibility="Horizontal"
+          HorizontalGridLinesBrush="#313244"
+          HeadersVisibility="Column"
+          FontSize="12.5"
+          CanUserSortColumns="True"
+          CanUserReorderColumns="True"
+          CanUserResizeColumns="True">
+    <DataGrid.ColumnHeaderStyle>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#313244"/>
+            <Setter Property="Foreground" Value="#A6ADC8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="BorderBrush" Value="#45475A"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        </Style>
+    </DataGrid.ColumnHeaderStyle>
+    <DataGrid.CellStyle>
+        <Style TargetType="DataGridCell">
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#45475A"/>
+                    <Setter Property="Foreground" Value="#CDD6F4"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </DataGrid.CellStyle>
+    <DataGrid.Columns>
+        <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss.fff}'}" Width="175"/>
+        <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="180"/>
+        <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="80"/>
+        <DataGridTextColumn Header="Component" Binding="{Binding Component}" Width="150"/>
+        <DataGridTextColumn Header="Line" Binding="{Binding LineNumber}" Width="55"/>
+        <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*"/>
+    </DataGrid.Columns>
+</DataGrid>
+'@
+
+function New-ResultsDataGrid {
+    param([object[]]$Items)
+
+    $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($script:dataGridTemplate))
+    $dg = [System.Windows.Markup.XamlReader]::Load($reader)
+    $dg.ItemsSource = $Items
+
+    $dg.Add_SelectionChanged({
+        param($sender, $e)
+        $selected = $sender.SelectedItem
+        if ($selected) {
+            $detail = @(
+                "Timestamp:  $($selected.Timestamp)"
+                "Source:     $($selected.Source)"
+                "Severity:   $($selected.Severity)"
+                "Component:  $($selected.Component)"
+                "Line:       $($selected.LineNumber)"
+                "Full Path:  $($selected.FullPath)"
+                ""
+                "--- Message ---"
+                $selected.Message
+            ) -join "`r`n"
+            $txtDetail.Text = $detail
+        }
+    })
+
+    return $dg
+}
+
+function Add-ResultsTab {
+    param(
+        [string]$Header,
+        [object[]]$Items
+    )
+    $tab = New-Object System.Windows.Controls.TabItem
+    $tab.Header = $Header
+    $tab.Content = New-ResultsDataGrid -Items $Items
+    $tcResults.Items.Add($tab) | Out-Null
+}
 
 # Store current results for export
 $script:currentResults = @()
@@ -109,7 +199,7 @@ $btnSearch.Add_Click({
     $tbStatus.Text = 'Searching...'
     $tbStatusRight.Text = ''
     $txtDetail.Text = ''
-    $dgResults.ItemsSource = $null
+    $tcResults.Items.Clear()
     $script:currentResults = @()
 
     # Force UI update
@@ -140,19 +230,21 @@ $btnSearch.Add_Click({
             }
         }
 
-        # Parse all log files
-        $allEntries = @()
+        # Parse all log files (List avoids O(n^2) array re-allocation on +=).
+        $allEntries     = [System.Collections.Generic.List[psobject]]::new()
         $filesProcessed = 0
-        $parseWarnings = @()
+        $parseWarnings  = [System.Collections.Generic.List[string]]::new()
 
         foreach ($logFile in $logFiles) {
             try {
-                $entries = @(Read-CMTraceLog -Path $logFile.FullName)
-                $allEntries += $entries
+                $entries = Read-CMTraceLog -Path $logFile.FullName
+                if ($entries) {
+                    $allEntries.AddRange([psobject[]]@($entries))
+                }
                 $filesProcessed++
             }
             catch {
-                $parseWarnings += "Failed to parse $($logFile.Name): $($_.Exception.Message)"
+                $parseWarnings.Add("Failed to parse $($logFile.Name): $($_.Exception.Message)")
             }
         }
 
@@ -194,12 +286,21 @@ $btnSearch.Add_Click({
         $results = @(Search-Logs @searchParams)
         $script:currentResults = $results
 
-        # Bind to DataGrid
-        $dgResults.ItemsSource = $results
+        # Build tabs: "All Results" plus one tab per source file that has hits
+        Add-ResultsTab -Header "All Results ($($results.Count))" -Items $results
+
+        $groups = $results | Group-Object -Property Source | Sort-Object Name
+        foreach ($g in $groups) {
+            Add-ResultsTab -Header "$($g.Name) ($($g.Count))" -Items @($g.Group)
+        }
+
+        if ($tcResults.Items.Count -gt 0) {
+            $tcResults.SelectedIndex = 0
+        }
 
         # Update status
         $matchCount = $results.Count
-        $fileCount  = ($results | Select-Object -ExpandProperty Source -Unique).Count
+        $fileCount  = $groups.Count
         $tbStatus.Text = "Found $matchCount matches across $fileCount file(s)"
         $tbStatusRight.Text = "$totalEntries total entries from $filesProcessed file(s)"
 
@@ -209,29 +310,6 @@ $btnSearch.Add_Click({
     }
     catch {
         $tbStatus.Text = "Error: $($_.Exception.Message)"
-    }
-})
-
-# --- DataGrid selection changed → update detail panel ---
-$dgResults.Add_SelectionChanged({
-    $selected = $dgResults.SelectedItem
-    if ($selected) {
-        $detail = @(
-            "Timestamp:  $($selected.Timestamp)"
-            "Source:     $($selected.Source)"
-            "Severity:   $($selected.Severity)"
-            "Component:  $($selected.Component)"
-            "Line:       $($selected.LineNumber)"
-            "Full Path:  $($selected.FullPath)"
-            ""
-            "--- Message ---"
-            $selected.Message
-        ) -join "`r`n"
-
-        $txtDetail.Text = $detail
-    }
-    else {
-        $txtDetail.Text = ''
     }
 })
 
